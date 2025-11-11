@@ -32,6 +32,16 @@ class AsientoContable(models.Model):
     total_debe = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_haber = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
+    def actualizar_totales(self):
+        """
+        Recalcula automáticamente el total del Debe y del Haber
+        cada vez que se guardan o eliminan detalles del asiento.
+        """
+        detalles = self.detalles.all()
+        self.total_debe = sum(d.debe for d in detalles)
+        self.total_haber = sum(d.haber for d in detalles)
+        self.save()
+
     def __str__(self):
         return f"Asiento #{self.id} - {self.fecha}"
 
@@ -42,11 +52,28 @@ class AsientoContable(models.Model):
 
 
 class DetalleAsiento(models.Model):
-    asiento = models.ForeignKey(AsientoContable, on_delete=models.CASCADE, related_name='detalles')
-    cuenta = models.ForeignKey(CuentaContable, on_delete=models.PROTECT)
+    asiento = models.ForeignKey(
+        AsientoContable,
+        on_delete=models.CASCADE,
+        related_name='detalles'
+    )
+    cuenta = models.ForeignKey(
+        CuentaContable,
+        on_delete=models.PROTECT
+    )
     descripcion = models.CharField(max_length=150)
     debe = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     haber = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Recalcular totales cuando se agrega o modifica un detalle
+        self.asiento.actualizar_totales()
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        # Recalcular totales cuando se elimina un detalle
+        self.asiento.actualizar_totales()
 
     def __str__(self):
         return f"{self.cuenta.nombre} - Debe: {self.debe} / Haber: {self.haber}"
